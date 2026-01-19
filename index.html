@@ -1,32 +1,4 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GreenTrack AI - Connecté</title>
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-    <style>
-        /* (Le style reste le même que précédemment) */
-        :root { --primary: #2D6A4F; --secondary: #52B788; }
-        body { font-family: sans-serif; text-align: center; background: #f4f4f4; padding: 20px; }
-        .card { background: white; padding: 20px; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .btn { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; width: 100%; cursor: pointer; font-weight: bold; }
-        #reader { width: 100%; margin-top: 10px; }
-    </style>
-</head>
-<body>
-
-    <div class="card">
-        <h2>Utilisateur</h2>
-        <button class="btn" onclick="creerCodeDansBase()">GÉNÉRER MON CODE</button>
-        <div id="qrcode" style="margin-top:20px; display:flex; justify-content:center;"></div>
-    </div>
-
-    <div class="card">
+<div class="card">
         <h2>Commerçant</h2>
         <div id="reader"></div>
         <button class="btn" style="background:#333;" onclick="demarrerScanner()">ACTIVER SCANNER</button>
@@ -34,70 +6,88 @@
     </div>
 
     <script>
-        // --- CONFIGURATION SUPABASE ---
-        // REMPLACE CES DEUX LIGNES PAR TES INFOS SUPABASE
-        const SUPABASE_URL = "https://jfejbhaxxbdrlbbysgpi.supabase.co";
-        const SUPABASE_KEY = "sb_publishable_vv_52ABHlGzUD2pFKZe2Iw_lTROSJpp";
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// --- CONFIGURATION SUPABASE ---
+const SUPABASE_URL = "https://jfejbhaxxbdrIbbysgpi.supabase.co"; 
+const SUPABASE_KEY = "TON_CODE_ANON_ICI"; // <--- BIEN VÉRIFIER CETTE CLÉ
 
-        // 1. GÉNÉRER ET ENREGISTRER DANS LA BASE
-        async function creerCodeDansBase() {
-            const idUnique = "GT-LILLE-" + Math.floor(Math.random() * 100000);
-            
-            // On enregistre dans Supabase
-            const { error } = await supabase
-                .from('recompenses')
-                .insert([{ code_texte: idUnique, est_utilise: false }]);
+// On change le nom ici pour éviter le bug : supabaseAdmin au lieu de supabase
+const supabaseAdmin = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-            if (error) {
-                alert("Erreur de connexion base : " + error.message);
-            } else {
-                // Si l'enregistrement a marché, on affiche le QR Code
-                document.getElementById("qrcode").innerHTML = "";
-                new QRCode(document.getElementById("qrcode"), idUnique);
-                console.log("Code enregistré dans le cloud : " + idUnique);
-            }
+// 1. GÉNÉRER ET ENREGISTRER
+async function creerCodeDansBase() {
+    const idUnique = "GT-LILLE-" + Math.floor(Math.random() * 100000);
+    console.log("Tentative de création :", idUnique);
+
+    try {
+        const { error } = await supabaseAdmin
+            .from('recompenses') // VÉRIFIE QUE TA TABLE S'APPELLE BIEN recompenses
+            .insert([{ code_texte: idUnique, est_utilise: false }]);
+
+        if (error) {
+            alert("Erreur Supabase : " + error.message);
+            return;
         }
 
-        // 2. SCANNER ET VÉRIFIER DANS LA BASE
-        function demarrerScanner() {
-            const scanner = new Html5Qrcode("reader");
-            scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, 
-                async (decodedText) => {
-                    scanner.stop();
-                    verifierCodeDansBase(decodedText);
-                }
-            );
-        }
+        // Affichage du QR Code
+        document.getElementById("qrcode").innerHTML = "";
+        new QRCode(document.getElementById("qrcode"), {
+            text: idUnique,
+            width: 150,
+            height: 150
+        });
+        alert("Code enregistré et généré !");
 
-        async function verifierCodeDansBase(texteScanne) {
-            const resultDiv = document.getElementById("scan-result");
-            resultDiv.style.display = "block";
-            resultDiv.innerHTML = "Vérification en cours...";
+    } catch (err) {
+        alert("Erreur système : " + err.message);
+    }
+}
 
-            // On cherche le code dans la table 'recompenses'
-            const { data, error } = await supabase
-                .from('recompenses')
-                .select('*')
-                .eq('code_texte', texteScanne)
-                .eq('est_utilise', false)
-                .single();
+// 2. SCANNER ET ACTIVER CAMÉRA
+function demarrerScanner() {
+    // Vérification si on est bien en HTTPS (obligatoire pour la caméra)
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+        alert("La caméra nécessite une connexion sécurisée (HTTPS). Utilise ton lien GitHub Pages !");
+        return;
+    }
 
-            if (data) {
-                // Si on trouve le code et qu'il n'est pas utilisé
-                resultDiv.style.background = "#d8f3dc";
-                resultDiv.innerHTML = "✅ VALIDE ! Récompense acceptée.";
-                
-                // On le marque comme utilisé pour qu'il ne serve plus
-                await supabase
-                    .from('recompenses')
-                    .update({ est_utilise: true })
-                    .eq('code_texte', texteScanne);
-            } else {
-                resultDiv.style.background = "#ffccd5";
-                resultDiv.innerHTML = "❌ INVALIDE ou déjà utilisé.";
-            }
-        }
-    </script>
-</body>
-</html>
+    const scanner = new Html5Qrcode("reader");
+    
+    scanner.start(
+        { facingMode: "environment" }, 
+        { fps: 10, qrbox: 250 }, 
+        async (decodedText) => {
+            alert("Scan réussi : " + decodedText);
+            scanner.stop();
+            verifierCodeDansBase(decodedText);
+        },
+        (err) => { /* lecture en cours... */ }
+    ).catch(err => alert("Impossible d'ouvrir la caméra : " + err));
+}
+
+// 3. VÉRIFICATION
+async function verifierCodeDansBase(texteScanne) {
+    const resultDiv = document.getElementById("scan-result");
+    resultDiv.style.display = "block";
+    resultDiv.innerHTML = "Vérification...";
+
+    const { data, error } = await supabaseAdmin
+        .from('recompenses')
+        .select('*')
+        .eq('code_texte', texteScanne)
+        .eq('est_utilise', false)
+        .single();
+
+    if (data) {
+        resultDiv.style.background = "#d8f3dc";
+        resultDiv.innerHTML = "✅ VALIDE !";
+        // Marquer comme utilisé
+        await supabaseAdmin
+            .from('recompenses')
+            .update({ est_utilise: true })
+            .eq('code_texte', texteScanne);
+    } else {
+        resultDiv.style.background = "#ffccd5";
+        resultDiv.innerHTML = "❌ INVALIDE ou DÉJÀ UTILISÉ";
+    }
+    
+}
